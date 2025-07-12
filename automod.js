@@ -1,58 +1,58 @@
 const axios = require("axios");
 
-const flaggedWords = [
+const blockedWords = [
   "fuck", "shit", "bitch", "asshole", "slut", "cunt", "retard", "dick", "porn", "rape", "nigger"
 ];
 
-function isFlagged(message) {
-  return flaggedWords.some(word => message.content.toLowerCase().includes(word));
-}
-
-async function analyzeMessage(content) {
-  try {
-    const response = await axios.post(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        model: "nousresearch/nous-capybara-7b:free", // 🚀 Fastest free model on OpenRouter
-        messages: [{
-          role: "user",
-          content: `Is the following message toxic?\n\n"${content}"\n\nReply with only one word: "Yes" or "No".`
-        }]
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://zex-auto.dortz.zone",
-          "X-Title": "ZEX-AUTO+"
-        }
-      }
-    );
-
-    return response.data.choices?.[0]?.message?.content?.trim();
-  } catch (err) {
-    console.error("🧠 AI Error:", err?.response?.data || err.message);
-    return null;
-  }
-}
-
 module.exports = (client) => {
-  client.on("messageCreate", async (msg) => {
-    if (msg.author.bot || !msg.guild) return;
+  client.on("messageCreate", async (message) => {
+    if (message.author.bot || !message.guild) return;
 
-    if (!isFlagged(msg)) return;
+    const content = message.content.toLowerCase();
 
-    const result = await analyzeMessage(msg.content);
+    // Quick check for slurs or obvious words
+    const keywordFlagged = blockedWords.some(word => content.includes(word));
+    if (!keywordFlagged) return;
 
-    if (!result) return;
+    // Deep AI check (fallback-friendly)
+    try {
+      const res = await axios.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          model: "nousresearch/nous-capybara-7b:free",
+          messages: [{
+            role: "user",
+            content: `Is the following Discord message toxic or abusive?\n\n"${message.content}"\n\nJust reply Yes or No.`
+          }]
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://zex-auto.onrender.com",
+            "X-Title": "ZEX-AUTO+"
+          }
+        }
+      );
 
-    if (result.toLowerCase().includes("yes")) {
+      const aiResponse = res.data.choices?.[0]?.message?.content?.toLowerCase().trim();
+
+      if (aiResponse?.includes("yes")) {
+        await message.delete();
+        await message.channel.send(`⚠️ <@${message.author.id}> message deleted for violating rules.`);
+        console.log(`💥 Auto-deleted: ${message.content}`);
+      } else {
+        console.log("✅ AI passed the message.");
+      }
+    } catch (err) {
+      console.error("AI moderation failed:", err?.response?.data || err.message);
+      // Fallback to basic keyword delete
       try {
-        await msg.delete();
-        await msg.channel.send(`⚠️ <@${msg.author.id}> that message was flagged as toxic and removed.`);
-        console.log(`🚨 Deleted: "${msg.content}"`);
-      } catch (err) {
-        console.error("❌ Couldn't delete message:", err);
+        await message.delete();
+        await message.channel.send(`⚠️ <@${message.author.id}> your message contained banned words.`);
+        console.log("🚨 Deleted via fallback.");
+      } catch (delErr) {
+        console.error("Fallback deletion failed:", delErr);
       }
     }
   });

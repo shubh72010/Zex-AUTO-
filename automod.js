@@ -4,37 +4,36 @@ module.exports = function deepseekAutomod(client) {
   client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
-    try {
-      const prompt = `Is this message toxic, offensive, or spam? Respond only with 'OK' or 'MODERATE'. Message: "${message.content}"`;
+    const prompt = `Is the following message offensive, toxic, spam, or harmful in any way? Only respond with 'OK' or 'MODERATE'.\nMessage: "${message.content}"`;
 
+    try {
       const response = await axios.post(
-        "https://openrouter.ai/api/v1/chat/completions",
+        'https://openrouter.ai/api/v1/chat/completions',
         {
-          model: "tngtech/deepseek-r1t2-chimera:free",
-          messages: [{ role: "user", content: prompt }],
+          model: 'tngtech/deepseek-r1t2-chimera:free',
+          messages: [{ role: 'user', content: prompt }]
         },
         {
           headers: {
             Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://zex.dortz.zone",
-            "X-Title": "ZEX-AUTO+",
-          },
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://zex.dortz.zone',
+            'X-Title': 'ZEX-AUTO+'
+          }
         }
       );
 
-      const result = response.data.choices?.[0]?.message?.content?.toLowerCase();
+      const reply = response.data.choices?.[0]?.message?.content?.toLowerCase();
 
-      if (result && result.includes('moderate')) {
+      if (reply && reply.includes('moderate')) {
         await message.delete();
         await message.channel.send({
-          content: `⚠️ <@${message.author.id}>, your message was flagged by ZEX-AUTO+'s smart filter.`,
+          content: `⚠️ <@${message.author.id}>, your message was flagged by ZEX-AUTO+ for moderation.`
         });
-        console.log(`Moderated: ${message.content}`);
       }
 
     } catch (err) {
-      console.error('DeepSeek automod error:', err);
+      console.error('❌ DeepSeek Moderation Failed:', err);
     }
   });
 };
